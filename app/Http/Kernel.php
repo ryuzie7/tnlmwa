@@ -32,8 +32,12 @@ class Kernel extends HttpKernel
 
     protected $routeMiddleware = [
         'auth' => \App\Http\Middleware\Authenticate::class,
-        'approved' => \App\Http\Middleware\ApprovedMiddleware::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'role' => \App\Http\Middleware\RoleMiddleware::class,
     ];
+
+    protected $commands = [
+    \App\Console\Commands\ClearAssetCache::class,
+];
+
 }

@@ -4,29 +4,65 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Log;
+use App\Models\User;
 
 class Asset extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'name',
+        'property_number',
         'code',
+        'brand',
+        'model',
         'type',
-        'acquired_at',
         'condition',
         'location',
-        'custodian_id',
-        'created_by',
+        'building_name',
+        'fund',
+        'price',
+        'acquired_at',
+        'previous_custodian',
+        'custodian',
+        'latitude',
+        'longitude',
     ];
 
-    public function custodian()
+    public function logs()
     {
-        return $this->belongsTo(Custodian::class);
+        return $this->hasMany(Log::class);
     }
 
-    public function usageHistories()
+    public function user()
     {
-        return $this->hasMany(UsageHistory::class);
+        return $this->hasOneThrough(
+            User::class,
+            Log::class,
+            'asset_id',
+            'id',
+            'id',
+            'user_id'
+        )->latestOfMany();
+    }
+
+    public function getNameAttribute()
+    {
+        return trim($this->brand . ' ' . $this->model);
+    }
+
+    public function getConditionStatusAttribute(): string
+    {
+        $year = \Carbon\Carbon::parse($this->acquired_at)->year;
+        $current = now()->year;
+        $age = $current - $year;
+
+        if ($age <= 3) {
+            return 'Good';
+        } elseif ($age <= 5) {
+            return 'Fair';
+        } else {
+            return 'Poor';
+        }
     }
 }

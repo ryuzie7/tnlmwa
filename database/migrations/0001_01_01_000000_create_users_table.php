@@ -12,33 +12,33 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();  // Auto-incrementing primary key
-            $table->string('name');  // Name of the user
-            $table->string('email')->unique();  // Email, must be unique in the table
-            $table->string('password');  // Password for the user (hashed)
-            $table->string('staff_id')->unique()->nullable();  // Unique staff ID, can be nullable
-            $table->string('phone')->nullable();  // Phone number (nullable)
-            $table->boolean('approved')->default(true);  // Account approval status, default is true (approved)
-            $table->rememberToken();  // For "remember me" functionality
-            $table->timestamps();  // Timestamps (created_at, updated_at)
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->string('staff_id')->nullable()->unique();
+            $table->string('phone')->nullable();
+            $table->enum('role', ['admin', 'user'])->default('user');
+            $table->boolean('approved')->default(false);
+            $table->timestamp('email_verified_at')->nullable();
+            $table->rememberToken();
+            $table->timestamps();
         });
 
-        // Password reset tokens table
         Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email');  // Email address for the password reset request
-            $table->string('token');  // The token for password reset
-            $table->timestamp('created_at')->nullable();  // Timestamp when the token was created
-            $table->primary('email');  // Use email as the primary key
+            $table->string('email');
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+            $table->primary('email');
         });
 
-        // Sessions table to track active sessions
         Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();  // Session ID
-            $table->foreignId('user_id')->nullable()->index();  // Foreign key for the user, nullable
-            $table->string('ip_address', 45)->nullable();  // IP address of the user
-            $table->text('user_agent')->nullable();  // User agent string (browser details)
-            $table->longText('payload');  // Payload for the session data
-            $table->integer('last_activity')->index();  // Timestamp for the last activity in the session
+            $table->string('id')->primary();
+            $table->foreignId('user_id')->nullable()->index();
+            $table->string('ip_address', 45)->nullable();
+            $table->text('user_agent')->nullable();
+            $table->longText('payload');
+            $table->integer('last_activity')->index();
         });
     }
 
@@ -47,7 +47,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Drop all three tables if rolling back
         Schema::dropIfExists('users');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
