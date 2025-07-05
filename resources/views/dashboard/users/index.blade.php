@@ -73,7 +73,7 @@
                     <th class="px-4 py-3">Name</th>
                     <th class="px-4 py-3">Email</th>
                     <th class="px-4 py-3">Phone</th>
-                    <th class="px-4 py-3">Staff ID</th>
+                    <th class="px-4 py-3">ID</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3">Role</th>
                     @if(auth()->user()->role === 'admin')
