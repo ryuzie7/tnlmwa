@@ -177,7 +177,7 @@
         if (!container) return;
 
         const img = document.createElement('img');
-        img.src = `/dashboard/assets/${id}/qr`;
+        img.src = `/assets/${id}/qr`;
         img.alt = 'QR Code';
         img.className = 'w-28 h-28 blur-sm transition duration-700 ease-in-out';
 

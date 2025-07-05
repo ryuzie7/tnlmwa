@@ -143,17 +143,23 @@
 
 <!-- Guest View -->
 @guest
-<div class="h-screen flex flex-col items-center justify-end px-4 pb-10 bg-no-repeat bg-cover bg-center" style="background-image: url('https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiFhIkpkNyI6sJ2B1znxjavoqbOg50JcgYku-7MJWVwsliJ_jivHedI36T3nHhAqRlAQnQ62PWAfY2_CNpPTz5aItno-IFIzEcHv7gm4d11fot_Lr6EXtrU-OKsWEEFY9YsNCjtRvkbUpQ/s1600/5.jpg');">
-    <button onclick="toggleDarkMode()" class="absolute top-4 right-4 text-sm px-3 py-1 border rounded text-gray-700 dark:text-white dark:border-white border-gray-700">
-        🌙 Toggle Dark Mode
-    </button>
+<div class="absolute inset-x-0 top-6 mx-auto text-center animate-float px-4 max-w-screen-sm">
+    <img src="https://www.ibec.unimas.my/images/2020/09/24/uitm.png"
+         alt="UiTM Logo"
+         class="mx-auto h-16 md:h-20 mb-2 drop-shadow-xl">
 
-    <div class="text-center absolute top-20 w-full animate-float">
-        <img src="https://www.ibec.unimas.my/images/2020/09/24/uitm.png" alt="UiTM Logo" class="mx-auto h-16 md:h-20 mb-2 drop-shadow-xl">
-        <h1 class="text-3xl md:text-5xl font-bold text-white text-outline">Teaching and Learning</h1>
-        <h2 class="text-lg md:text-2xl font-medium text-white text-outline mt-1">Inventory Management Web Application</h2>
-        <h3 class="text-md md:text-lg text-white text-outline mt-1">UiTM Perlis</h3>
-    </div>
+    <h1 class="text-2xl md:text-4xl lg:text-5xl font-bold text-white text-outline leading-tight">
+        Teaching and Learning
+    </h1>
+    <h2 class="text-lg md:text-xl lg:text-2xl font-medium text-white text-outline mt-1 leading-snug">
+        Inventory Management Web Application
+    </h2>
+    <h3 class="text-md md:text-lg text-white text-outline mt-1">
+        UiTM Perlis Branch, Arau Campus
+    </h3>
+</div>
+
+
 
     @yield('content')
 </div>

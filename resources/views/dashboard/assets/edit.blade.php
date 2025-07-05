@@ -33,6 +33,21 @@
         @method('PUT')
 
         <div class="space-y-6">
+            {{-- Property Number --}}
+            <div>
+                <label for="property_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Property Number *
+                </label>
+                <input
+                    type="text"
+                    name="property_number"
+                    id="property_number"
+                    value="{{ old('property_number', $asset->property_number) }}"
+                    required
+                    class="mt-1 block w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                >
+            </div>
+
             @foreach([
                 ['name' => 'brand', 'label' => 'Brand', 'type' => 'text'],
                 ['name' => 'model', 'label' => 'Model', 'type' => 'text'],

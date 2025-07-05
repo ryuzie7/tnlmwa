@@ -34,7 +34,7 @@ class AssetRequestSubmitted extends Notification implements ShouldQueue
             ->line('Asset Type: ' . $this->request->type)
             ->line('Brand: ' . $this->request->brand . ' | Model: ' . $this->request->model)
             ->line('Location: ' . $this->request->location)
-            ->action('Review Request', route('assets.requests'))
+            ->action('Review Request', route('logs.requests'))
             ->line('Thank you.');
     }
 

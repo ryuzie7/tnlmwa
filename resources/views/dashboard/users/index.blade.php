@@ -6,14 +6,12 @@
 <div class="max-w-7xl mx-auto px-4 py-6">
 
     <div class="flex justify-end mb-4">
-    <a href="{{ url()->previous() }}"
-       class="inline-flex items-center text-sm px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-        <i class="fas fa-arrow-left mr-2 text-xs"></i> Back
-    </a>
-</div>
+        <a href="{{ url()->previous() }}"
+           class="inline-flex items-center text-sm px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            <i class="fas fa-arrow-left mr-2 text-xs"></i> Back
+        </a>
+    </div>
 
-
-    <!-- Alerts -->
     @if(session('success'))
         <div class="bg-green-100 dark:bg-green-800 border border-green-400 dark:border-green-600 text-green-700 dark:text-green-100 px-4 py-3 rounded mb-4 shadow-sm">
             <i class="fas fa-check-circle mr-2"></i>{{ session('success') }}
@@ -102,20 +100,28 @@
                         @if(auth()->user()->role === 'admin')
                         <td class="px-4 py-3 text-center space-x-2">
                             @if(!$user->approved)
-                            <form action="{{ route('users.approve', $user) }}" method="POST" class="inline-block">
-                                @csrf
-                                <button type="submit" class="text-green-600 hover:text-green-800 dark:hover:text-green-400 font-medium text-sm" onclick="return confirm('Approve this user?')">
-                                    <i class="fas fa-check mr-1"></i>Approve
-                                </button>
-                            </form>
-                            <form action="{{ route('users.reject', $user) }}" method="POST" class="inline-block ml-1">
-                                @csrf
-                                <button type="submit" class="text-red-600 hover:text-red-800 dark:hover:text-red-400 font-medium text-sm" onclick="return confirm('Reject this user?')">
-                                    <i class="fas fa-times mr-1"></i>Reject
-                                </button>
-                            </form>
-                            @else
-                                <span class="text-gray-500 dark:text-gray-400 text-sm">No actions available</span>
+                                <form action="{{ route('users.approve', $user) }}" method="POST" class="inline-block">
+                                    @csrf
+                                    <button type="submit" class="text-green-600 hover:text-green-800 dark:hover:text-green-400 font-medium text-sm" onclick="return confirm('Approve this user?')">
+                                        <i class="fas fa-check mr-1"></i>Approve
+                                    </button>
+                                </form>
+                                <form action="{{ route('users.reject', $user) }}" method="POST" class="inline-block ml-1">
+                                    @csrf
+                                    <button type="submit" class="text-red-600 hover:text-red-800 dark:hover:text-red-400 font-medium text-sm" onclick="return confirm('Reject this user?')">
+                                        <i class="fas fa-times mr-1"></i>Reject
+                                    </button>
+                                </form>
+                            @endif
+
+                            @if(auth()->id() !== $user->id)
+                                <form action="{{ route('users.destroy', $user) }}" method="POST" class="inline-block ml-1">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium text-sm" onclick="return confirm('Delete this user?')">
+                                        <i class="fas fa-trash-alt mr-1"></i>Delete
+                                    </button>
+                                </form>
                             @endif
                         </td>
                         @endif

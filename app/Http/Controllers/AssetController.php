@@ -8,13 +8,13 @@ use App\Models\Log;
 use App\Models\LogRequest;
 use App\Models\User;
 use App\Notifications\AssetRequestSubmitted;
+use App\Notifications\AssetRequestStatusNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Response;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
-use App\Notifications\AssetRequestStatusNotification;
 
 class AssetController extends Controller
 {
@@ -220,32 +220,81 @@ class AssetController extends Controller
         return view('dashboard.assets.show', compact('asset'));
     }
 
-    public function showCard(Asset $asset)
+    public function generateQr(Asset $asset)
     {
-        return view('dashboard.assets.card_show', compact('asset'));
+        $url = route('assets.card.show', $asset->id);
+        return response(QrCode::format('svg')->size(200)->generate($url), 200, [
+            'Content-Type' => 'image/svg+xml',
+        ]);
     }
 
-    public function generateQr(Asset $asset)
+public function qrImage(Asset $asset)
 {
     $url = route('assets.card.show', $asset->id);
-    return response(QrCode::format('svg')->size(200)->generate($url), 200, [
-        'Content-Type' => 'image/svg+xml',
-    ]);
+    $qr = QrCode::format('png')->size(200)->generate($url);
+
+    return response($qr)->header('Content-Type', 'image/png');
 }
+
 
 
 public function downloadQr(Asset $asset)
 {
-    $url = route('assets.card.show', $asset);
-    $svg = QrCode::format('svg')->size(300)->generate($url);
+    $url = route('assets.card.show', $asset->id);
+    $qrSvg = trim(QrCode::format('svg')->size(300)->margin(0)->generate($url));
 
-    $filename = 'qr-' . $asset->property_number . '.svg';
+    // Clean up: remove internal XML declarations from QR SVG
+    $qrSvg = preg_replace('/<\?xml.*?\?>/', '', $qrSvg);
+
+    $brand = e($asset->brand ?? '');
+    $model = e($asset->model ?? '');
+    $propertyNumber = e($asset->property_number);
+
+    $filename = 'asset_qr_fullpage_' . $propertyNumber . '.svg';
+
+    $svg = <<<SVG
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="210mm" height="297mm" viewBox="0 0 210 297" version="1.1"
+     xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <style>
+    text {
+      font-family: Arial, sans-serif;
+      fill: #000;
+    }
+    .heading { font-size: 10px; font-weight: bold; }
+    .label { font-size: 9px; }
+    .footer { font-size: 8px; fill: #555; }
+  </style>
+
+  <rect width="100%" height="100%" fill="white"/>
+
+  <!-- UiTM Logo -->
+  <image x="75" y="10" width="60" height="30"
+         xlink:href="https://perlis.uitm.edu.my/images/logo/UiTM_new_on_white_background.png" />
+
+  <!-- QR Code -->
+  <g transform="translate(55, 55) scale(0.3)">
+    {$qrSvg}
+  </g>
+
+  <!-- Asset Info -->
+  <text x="105" y="155" text-anchor="middle" class="heading">{$brand} {$model}</text>
+  <text x="105" y="162" text-anchor="middle" class="label">Property No: {$propertyNumber}</text>
+
+  <!-- Call to action -->
+  <text x="105" y="175" text-anchor="middle" class="label">Scan Me for Info of This Item</text>
+
+  <!-- URL -->
+  <text x="105" y="185" text-anchor="middle" class="footer">https://teachingandlearningmwa.site</text>
+
+</svg>
+SVG;
 
     return response($svg)
         ->header('Content-Type', 'image/svg+xml')
-        ->header('Content-Disposition', "attachment; filename=\"$filename\"");
+        ->header('Content-Disposition', "attachment; filename=\"{$filename}\"");
 }
-
 
     public function exportCsv(Request $request)
     {
@@ -261,21 +310,12 @@ public function downloadQr(Asset $asset)
             ->get();
 
         $filename = 'assets_export_' . now()->format('Ymd_His') . '.csv';
-
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=$filename",
-        ];
-
-        $columns = [
-            'property_number', 'brand', 'model', 'type', 'condition', 'location', 'building_name',
-            'fund', 'price', 'acquired_at', 'previous_custodian', 'custodian'
-        ];
+        $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => "attachment; filename=$filename"];
+        $columns = ['property_number', 'brand', 'model', 'type', 'condition', 'location', 'building_name', 'fund', 'price', 'acquired_at', 'previous_custodian', 'custodian'];
 
         $callback = function () use ($assets, $columns) {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, $columns);
-
             foreach ($assets as $asset) {
                 $row = [];
                 foreach ($columns as $column) {
@@ -283,167 +323,159 @@ public function downloadQr(Asset $asset)
                 }
                 fputcsv($handle, $row);
             }
-
             fclose($handle);
         };
 
         return Response::stream($callback, 200, $headers);
     }
 
-   public function requests(Request $request)
+    public function requests(Request $request)
+    {
+        $assetRequests = AssetRequest::with('user')
+            ->where('status', 'pending')
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where(function ($query) use ($request) {
+                    $query->where('brand', 'like', '%' . $request->search . '%')
+                          ->orWhere('model', 'like', '%' . $request->search . '%');
+                });
+            })
+            ->orderByDesc('requested_at')
+            ->get();
+
+        $swapRequests = LogRequest::with('asset')
+            ->where('usage_type', 'location_swap')
+            ->where('status', 'pending')
+            ->orderBy('swap_group_id')
+            ->get()
+            ->groupBy('swap_group_id');
+
+        return view('dashboard.logs.request', compact('assetRequests', 'swapRequests'));
+    }
+
+    public function approveRequest(AssetRequest $request)
+    {
+        $log = Log::where('model_type', 'AssetRequest')
+            ->where('model_id', $request->id)
+            ->latest()
+            ->first();
+
+        if ($log) {
+            $log->update([
+                'status' => 'approved',
+                'applied_at' => now(),
+                'notes' => 'Asset request approved and applied to the database.',
+            ]);
+        } else {
+            Log::create([
+                'asset_id' => $request->action === 'edit'
+                    ? optional(Asset::where('property_number', $request->original_data['property_number'] ?? null)->first())->id
+                    : null,
+                'action' => 'approved',
+                'model_type' => 'AssetRequest',
+                'model_id' => $request->id,
+                'changes' => [
+                    'brand' => $request->brand,
+                    'model' => $request->model,
+                    'location' => $request->location,
+                    'action_requested' => $request->action,
+                    'original_data' => $request->original_data,
+                    'reason' => 'Approved by admin',
+                ],
+                'user_id' => auth()->id(),
+                'status' => 'approved',
+                'applied_at' => now(),
+                'notes' => 'Asset request approved and logged for record.',
+            ]);
+        }
+
+        if ($request->action === 'edit') {
+            $asset = Asset::where('property_number', $request->original_data['property_number'] ?? null)->first();
+            if ($asset) {
+                $asset->update([
+                    'brand' => $request->brand,
+                    'model' => $request->model,
+                    'location' => $request->location,
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                ]);
+            }
+        }
+
+        $request->update(['status' => 'approved']);
+        $request->user->notify(new AssetRequestStatusNotification($request, 'approved'));
+
+        return back()->with('success', 'Asset request approved.');
+    }
+
+    public function rejectRequest(AssetRequest $request)
+    {
+        $asset = $request->action === 'edit'
+            ? Asset::where('property_number', $request->original_data['property_number'] ?? null)->first()
+            : null;
+
+        $existingLog = Log::where('model_type', 'AssetRequest')
+            ->where('model_id', $request->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($existingLog) {
+            $existingLog->update([
+                'status' => 'rejected',
+                'applied_at' => now(),
+                'notes' => 'Asset request rejected by admin.',
+            ]);
+        } else {
+            Log::create([
+                'asset_id' => $asset?->id,
+                'action' => 'rejected',
+                'model_type' => 'AssetRequest',
+                'model_id' => $request->id,
+                'changes' => [
+                    'brand' => $request->brand,
+                    'model' => $request->model,
+                    'location' => $request->location,
+                    'action_requested' => $request->action,
+                    'original_data' => $request->original_data,
+                    'reason' => 'Rejected by admin',
+                ],
+                'user_id' => auth()->id(),
+                'status' => 'rejected',
+                'applied_at' => now(),
+                'notes' => 'Asset request rejected and logged for record.',
+            ]);
+        }
+
+        $request->update(['status' => 'rejected']);
+        $request->user->notify(new AssetRequestStatusNotification($request, 'rejected'));
+
+        return back()->with('info', 'Asset request rejected.');
+    }
+
+public function myRequests(Request $request)
 {
-    // Asset create/edit requests
-    $assetRequests = AssetRequest::with('user')
-        ->where('status', 'pending')
-        ->when($request->filled('search'), function ($q) use ($request) {
-            $q->where(function ($query) use ($request) {
-                $query->where('brand', 'like', '%' . $request->search . '%')
-                      ->orWhere('model', 'like', '%' . $request->search . '%');
+    $status = $request->input('status');
+    $search = $request->input('asset');
+
+    $requests = AssetRequest::where('user_id', auth()->id())
+        ->when($status, function ($query, $status) {
+            $query->where('status', $status);
+        })
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('brand', 'like', "%{$search}%")
+                  ->orWhere('model', 'like', "%{$search}%");
             });
         })
         ->orderByDesc('requested_at')
         ->get();
 
-    // Swap requests
-    $swapRequests = LogRequest::with('asset')
-        ->where('usage_type', 'location_swap')
-        ->where('status', 'pending')
-        ->orderBy('swap_group_id')
-        ->get()
-        ->groupBy('swap_group_id');
-
-    return view('dashboard.logs.request', compact('assetRequests', 'swapRequests'));
-}
-
-
-    public function approveRequest(AssetRequest $request)
-{
-    // Find existing log
-    $log = Log::where('model_type', 'AssetRequest')
-        ->where('model_id', $request->id)
-        ->latest()
-        ->first();
-
-    if ($log) {
-        $log->update([
-            'status' => 'approved',
-            'applied_at' => now(),
-            'notes' => 'Asset request approved and applied to the database.',
-        ]);
-    } else {
-        // If no existing log, create a new one (fallback safety)
-        Log::create([
-            'asset_id' => $request->action === 'edit'
-                ? optional(Asset::where('property_number', $request->original_data['property_number'] ?? null)->first())->id
-                : null,
-            'action' => 'approved',
-            'model_type' => 'AssetRequest',
-            'model_id' => $request->id,
-            'changes' => [
-                'brand' => $request->brand,
-                'model' => $request->model,
-                'location' => $request->location,
-                'action_requested' => $request->action,
-                'original_data' => $request->original_data,
-                'reason' => 'Approved by admin',
-            ],
-            'user_id' => auth()->id(),
-            'status' => 'approved',
-            'applied_at' => now(),
-            'notes' => 'Asset request approved and logged for record.',
-        ]);
-    }
-
-    // Apply changes to the asset if it's an edit
-    if ($request->action === 'edit') {
-    $asset = Asset::where('property_number', $request->original_data['property_number'] ?? null)->first();
-    if ($asset) {
-        $asset->update([
-            'brand' => $request->brand,
-            'model' => $request->model,
-            'location' => $request->location,
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude,
-        ]);
-    }
-}
-
-
-    // Mark the request as approved
-    $request->update(['status' => 'approved']);
-
-    // Notify user
-    $request->user->notify(new AssetRequestStatusNotification($request, 'approved'));
-
-    return back()->with('success', 'Asset request approved.');
-}
-
-
-   public function rejectRequest(AssetRequest $request)
-{
-    // Try to find the existing log for this request's asset
-    $asset = $request->action === 'edit'
-        ? Asset::where('property_number', $request->original_data['property_number'] ?? null)->first()
-        : null;
-
-    $existingLog = Log::where('model_type', 'AssetRequest')
-        ->where('model_id', $request->id)
-        ->where('status', 'pending')
-        ->latest()
-        ->first();
-
-    if ($existingLog) {
-        $existingLog->update([
-            'status' => 'rejected',
-            'applied_at' => now(),
-            'notes' => 'Asset request rejected by admin.',
-        ]);
-    } else {
-        // If no existing log, create one
-        Log::create([
-            'asset_id' => $asset?->id,
-            'action' => 'rejected',
-            'model_type' => 'AssetRequest',
-            'model_id' => $request->id,
-            'changes' => [
-                'brand' => $request->brand,
-                'model' => $request->model,
-                'location' => $request->location,
-                'action_requested' => $request->action,
-                'original_data' => $request->original_data,
-                'reason' => 'Rejected by admin',
-            ],
-            'user_id' => auth()->id(),
-            'status' => 'rejected',
-            'applied_at' => now(),
-            'notes' => 'Asset request rejected and logged for record.',
-        ]);
-    }
-
-    // Update request status
-    $request->update(['status' => 'rejected']);
-
-    // Notify user
-    $request->user->notify(new AssetRequestStatusNotification($request, 'rejected'));
-
-    return back()->with('info', 'Asset request rejected.');
-}
-
-
-public function myRequests()
-{
     $logs = Log::with('asset')
         ->where('user_id', auth()->id())
         ->orderByDesc('created_at')
         ->get();
 
-    $requests = AssetRequest::where('user_id', auth()->id())
-        ->orderByDesc('requested_at')
-        ->get();
-
     return view('dashboard.logs.userreqview', compact('logs', 'requests'));
 }
-
-
 
 }

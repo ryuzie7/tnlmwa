@@ -58,6 +58,36 @@ class LogController extends Controller
             return $log;
         });
 
+        // ✅ CSV Export if requested
+        if ($request->has('export') && $request->export === 'csv') {
+            $csvHeaders = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="asset_logs.csv"',
+            ];
+
+            $callback = function () use ($allLogs) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, ['Asset', 'User', 'From', 'To', 'Status', 'Requested At', 'Applied At']);
+
+                foreach ($allLogs as $log) {
+                    fputcsv($handle, [
+                        $log->asset->name ?? 'N/A',
+                        $log->user->name ?? 'N/A',
+                        $log->from_location ?? '-',
+                        $log->to_location ?? '-',
+                        ucfirst($log->status ?? 'N/A'),
+                        ($log->requested_at ?? $log->created_at)?->format('Y-m-d H:i'),
+                        $log->applied_at?->format('Y-m-d H:i') ?? '-',
+                    ]);
+                }
+
+                fclose($handle);
+            };
+
+            return response()->stream($callback, 200, $csvHeaders);
+        }
+
+        // Paginate if not exporting
         $perPage = 10;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $items = $allLogs instanceof Collection ? $allLogs : Collection::make($allLogs);
@@ -79,14 +109,31 @@ class LogController extends Controller
         ]);
     }
 
-    public function userRequests()
-    {
-        $requests = LogRequest::with('asset')->where('user_id', Auth::id())
-            ->orderByDesc('requested_at')
-            ->get();
+public function userRequests(Request $request)
+{
+    $query = LogRequest::with('asset')
+        ->where('user_id', Auth::id());
 
-        return view('dashboard.logs.userreqview', compact('requests'));
+    if ($request->filled('status')) {
+        $query->where('status', $request->status);
     }
+
+    if ($request->filled('asset')) {
+        $term = $request->asset;
+        $query->where(function ($q) use ($term) {
+            $q->where('brand', 'like', "%$term%")
+              ->orWhere('model', 'like', "%$term%")
+              ->orWhereHas('asset', function ($qa) use ($term) {
+                  $qa->where('name', 'like', "%$term%");
+              });
+        });
+    }
+
+    $requests = $query->orderByDesc('requested_at')->get();
+
+    return view('dashboard.logs.userreqview', compact('requests'));
+}
+
 
     public function create()
     {
